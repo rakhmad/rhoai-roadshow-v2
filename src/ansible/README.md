@@ -75,10 +75,10 @@ output=json
 If using podman copy your ~/.ssh/id_rsa.pub and ~/tmp/pull-secret files into your container.
 
 ### Scripted Environment Configuration Method:
-Use the `setup-env.sh` script to create the environment configuration file (`env.txt`).
+Use the `set-defaults.sh` script to create the environment configuration file (`env.txt`).
 
 ```bash
-./setup-env.sh
+./set-defaults.sh
 ```
 
 Review the environment variables iand AWS config are correct:
@@ -97,6 +97,8 @@ Define the environment variables:
 source env.txt
 ```
 
+> Ansible reads these from your shell, not from `env.txt`. Re-run `source env.txt` after **every** change to `env.txt`, otherwise the old values are used.
+
 ### Manual Environment Configuration Method
 Export in your environment.
 
@@ -107,15 +109,16 @@ export AWS_DEFAULT_ZONES=["us-east-2a"]      # change this to suit
 export AWS_ACCESS_KEY_ID=...      # change this (available from the lab instructions page in demo redhat com)
 export AWS_SECRET_ACCESS_KEY=...  # change this (available from the lab instructions page in demo redhat com)
 export CLUSTER_NAME=sno           # can be anything, but leave as sno unless you need to change it
-export BASE_DOMAIN=sandbox3000.opentlc.com    # (available from the lab instructions page in demo redhat com)
+export BASE_DOMAIN=sandbox3000.opentlc.com    # (available from the lab instructions page in demo redhat com) - no leading dot, must be a public route53 zone in your account
 export PULL_SECRET=~/tmp/pull-secret          # NOTE THIS IS A FILE - download your pull secret here https://console.redhat.com/openshift/downloads#tool-pull-secret
-export SSH_KEY=$(cat ~/.ssh/id_rsa.pub)       # NOTE THIS IS A FILE
+export SSH_KEY=$(cat ~/.ssh/id_rsa.pub)       # the key itself, or a path to the .pub file
 export INSTANCE_TYPE=g6.8xlarge   # 24GB L4 Nvidia, 32 vCPUs, 128 GiB of memory and 25 Gibps of bandwidth ~$2 per hour
 export ROOT_VOLUME_SIZE=400       # can be anything, but leave as is unless you need to change it
 export OPENSHIFT_VERSION=4.19.11  # change this we will keep this working with the latest GA version
 export ADMIN_PASSWORD=password    # change this for your admin user
 export EMAIL=your@email.com       # change this for lets encrypt certs admin email
 export ANSIBLE_VAULT_SECRET=..    # change this to the ansible secret for vault-sno (available from the lab instructions page in demo redhat com)
+export TMPDIR=~/sno-work && mkdir -p $TMPDIR   # install work dir (~1.5GB) - /tmp is often a small RAM tmpfs and fills up
 ```
 
 ### Running the installation

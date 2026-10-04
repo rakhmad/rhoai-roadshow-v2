@@ -22,6 +22,7 @@ export EMAIL=your@email.com
 export INSTANCE_TYPE=g6.8xlarge   # 24GB L4 Nvidia, 32 vCPUs, 128 GiB of memory and 25 Gibps of bandwidth ~$2 per hour
 export ROOT_VOLUME_SIZE=400       # can be anything, but leave as is unless you need to change it
 export ANSIBLE_VAULT_SECRET=<ansible-vault-secret>   # change this to the ansible secret for vault-sno
+export TMPDIR=~/sno-work          # install work dir (~1.5GB), keep off /tmp which is often a small tmpfs
 EOF
     echo "✅ Created $ENV_FILE with default values."
 fi
@@ -81,6 +82,22 @@ ANSIBLE_VAULT_SECRET=$(prompt_update "ANSIBLE_VAULT_SECRET" "$ANSIBLE_VAULT_SECR
 
 echo "✅ env.txt updated successfully."
 
+# Lab page shows the domain as ".sandboxNNNN.opentlc.com" - the installer needs it without the leading dot
+if [[ "$BASE_DOMAIN" == .* ]]; then
+    BASE_DOMAIN="${BASE_DOMAIN#.}"
+    sed -i "s|^export BASE_DOMAIN=.*|export BASE_DOMAIN=$BASE_DOMAIN|" "$ENV_FILE"
+    echo "✅ Removed leading dot from BASE_DOMAIN: $BASE_DOMAIN"
+fi
+
+# env.txt files created before TMPDIR was added
+if ! grep -q '^export TMPDIR=' "$ENV_FILE"; then
+    echo 'export TMPDIR=~/sno-work          # install work dir (~1.5GB), keep off /tmp which is often a small tmpfs' >> "$ENV_FILE"
+fi
+# Must exist, otherwise ansible's tempfile silently falls back to /tmp
+TMPDIR_EXPANDED=$(eval echo "$(grep '^export TMPDIR=' "$ENV_FILE" | cut -d'=' -f2- | cut -d' ' -f1)")
+mkdir -p "$TMPDIR_EXPANDED"
+echo "✅ Install work dir: $TMPDIR_EXPANDED"
+
 # Must look like ["zone1","zone2",...]
 if [[ ! "$AWS_DEFAULT_ZONES" =~ ^\[[[:space:]]*\"[^\"[:cntrl:]]+\"([[:space:]]*,[[:space:]]*\"[^\"[:cntrl:]]+\")*[[:space:]]*\]$ ]]; then
     echo "❌ AWS_DEFAULT is not properly formatted: $AWS_DEFAULT_ZONES"
@@ -100,6 +117,19 @@ else
     echo "✅ Pull secret exists at: $PULL_SECRET_EXPANDED"
 fi
 
+# --- Validate SSH Key (path to .pub file or the key itself) ---
+SSH_KEY_EXPANDED=$(eval echo "$SSH_KEY")
+if [[ -f "$SSH_KEY_EXPANDED" ]]; then
+    SSH_KEY_EXPANDED=$(cat "$SSH_KEY_EXPANDED")
+fi
+if [[ "$SSH_KEY_EXPANDED" != ssh-* && "$SSH_KEY_EXPANDED" != ecdsa-* ]]; then
+    echo "❌ SSH_KEY is not a public key or a path to one: $SSH_KEY"
+    echo "   Use \$(cat ~/.ssh/id_rsa.pub), ~/.ssh/id_rsa.pub or paste the key in $ENV_FILE."
+    exit 1
+else
+    echo "✅ SSH key looks valid."
+fi
+
 # --- Sync to AWS CLI profile ---
 if command -v aws >/dev/null 2>&1; then
     aws configure set aws_access_key_id     "$AWS_ACCESS_KEY_ID"     --profile "$AWS_PROFILE"
@@ -111,4 +141,6 @@ if command -v aws >/dev/null 2>&1; then
 else
     echo "⚠️  AWS CLI not found. Skipped updating AWS profile."
 fi
+
+echo "👉 Now run: source $ENV_FILE   (re-run it after every change to $ENV_FILE, ansible reads the shell environment)"
 
